@@ -15,20 +15,34 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Unpack project
-        run: unzip -q app_project.zip -d proj
+      - name: Locate project
+        id: loc
+        run: |
+          echo "--- repo files ---"
+          ls -la
+          Z=$(ls *.zip 2>/dev/null | head -1 || true)
+          if [ -n "$Z" ]; then
+            echo "zip मिली: $Z"
+            mkdir -p proj
+            unzip -q "$Z" -d proj
+          fi
+          S=$(find . -name settings.gradle -not -path './.git/*' | head -1)
+          if [ -z "$S" ]; then
+            echo "ERROR: settings.gradle नहीं मिला।"
+            exit 1
+          fi
+          echo "project dir: $(dirname "$S")"
+          echo "dir=$(dirname "$S")" >> "$GITHUB_OUTPUT"
 
       - name: Build debug APK
-        working-directory: proj
-        run: gradle assembleDebug --no-daemon
+        working-directory: ${{ steps.loc.outputs.dir }}
+        run: gradle assembleDebug --no-daemon --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
           name: GeoAligner-APK
-          path: proj/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ steps.loc.outputs.dir }}/app/build/outputs/apk/debug/app-debug.apk
